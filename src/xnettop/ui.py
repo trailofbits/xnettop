@@ -47,8 +47,8 @@ class SortColumn:
 class StatsDisplay(Static):
     """Widget displaying summary statistics."""
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        super().__init__(*args, **kwargs)
         self._total_upload = 0
         self._total_download = 0
         self._upload_rate = 0.0
