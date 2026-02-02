@@ -17,14 +17,26 @@ Cross-platform network traffic monitor by process. Inspired by [nettop](https://
 
 ## Installation
 
+Install directly from GitHub:
+
 ```bash
-pip install .
+uv tool install git+https://github.com/trailofbits/xnettop
+sudo xnettop
 ```
 
-## Usage
+Or clone and install locally:
 
 ```bash
-sudo xnettop
+git clone https://github.com/trailofbits/xnettop
+cd xnettop
+uv sync
+sudo uv run xnettop
+```
+
+For development:
+
+```bash
+uv sync --dev
 ```
 
 ### Options
