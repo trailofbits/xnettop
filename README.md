@@ -51,4 +51,4 @@ docker run --rm -it --cap-add=NET_RAW --cap-add=NET_ADMIN --net=host xnettop
 
 ## License
 
-MIT
+Apache-2.0
