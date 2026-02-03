@@ -5,8 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build and Development Commands
 
 ```bash
-# Install dependencies
-uv sync --dev
+# Install dependencies (including dev dependencies)
+uv sync --extra dev
 
 # Run the application (requires root)
 sudo uv run xnettop
@@ -15,8 +15,11 @@ sudo uv run xnettop
 uv run ruff check --fix
 uv run ruff format
 
+# Type check
+uv run ty check
+
 # Run tests
-pytest -q
+uv run pytest -q
 
 # Docker build for Linux testing
 docker build -t xnettop .

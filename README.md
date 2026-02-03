@@ -5,9 +5,11 @@ Cross-platform network traffic monitor by process. Inspired by [nettop](https://
 ## Features
 
 - Real-time network traffic monitoring per process
-- Cross-platform: Linux and macOS (Windows experimental)
+- Supported platforms: Linux and macOS
 - Interactive TUI with sorting and filtering
 - Shows upload/download rates and totals
+
+> **Note:** Windows is not supported. The tool requires raw packet capture capabilities that are not available on Windows without additional drivers.
 
 ## Requirements
 

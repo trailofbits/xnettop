@@ -80,22 +80,32 @@ class TrafficAggregator:
 
     def start(self) -> None:
         """Start the aggregator background thread."""
-        if self._running:
-            return
-        self._running = True
-        self._thread = threading.Thread(target=self._aggregator_loop, daemon=True)
-        self._thread.start()
+        with self._lock:
+            if self._running:
+                return
+            self._running = True
+        thread = threading.Thread(target=self._aggregator_loop, daemon=True)
+        with self._lock:
+            self._thread = thread
+        thread.start()
 
     def stop(self) -> None:
         """Stop the aggregator."""
-        self._running = False
-        if self._thread:
-            self._thread.join(timeout=2.0)
+        with self._lock:
+            if not self._running:
+                return
+            self._running = False
+            thread = self._thread
             self._thread = None
+        if thread:
+            thread.join(timeout=2.0)
 
     def _aggregator_loop(self) -> None:
         """Background loop to process packets."""
-        while self._running:
+        while True:
+            with self._lock:
+                if not self._running:
+                    break
             self._process_packets()
             self._update_rates()
             time.sleep(self.update_interval)
@@ -144,9 +154,23 @@ class TrafficAggregator:
                 stats.calculate_rate()
 
     def get_stats(self) -> list[ProcessStats]:
-        """Get current stats for all processes, sorted by total rate."""
+        """Get current stats for all processes, sorted by total rate.
+
+        Returns snapshots of ProcessStats objects to avoid TOCTOU races with
+        the background aggregator thread.
+        """
         with self._lock:
-            stats_list = list(self._stats.values())
+            stats_list = [
+                ProcessStats(
+                    pid=s.pid,
+                    name=s.name,
+                    upload_bytes=s.upload_bytes,
+                    download_bytes=s.download_bytes,
+                    upload_rate=s.upload_rate,
+                    download_rate=s.download_rate,
+                )
+                for s in self._stats.values()
+            ]
         stats_list.sort(key=lambda s: s.upload_rate + s.download_rate, reverse=True)
         return stats_list
 

@@ -17,6 +17,9 @@ from xnettop.ui import XnettopApp
 
 def check_root() -> None:
     """Check if running with root privileges."""
+    if sys.platform == "win32":
+        print("Error: xnettop is not supported on Windows.", file=sys.stderr)
+        sys.exit(1)
     if os.geteuid() != 0:
         print("Error: xnettop requires root privileges for packet capture.", file=sys.stderr)
         print("Please run with: sudo xnettop", file=sys.stderr)

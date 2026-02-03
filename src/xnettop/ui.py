@@ -47,8 +47,8 @@ class SortColumn:
 class StatsDisplay(Static):
     """Widget displaying summary statistics."""
 
-    def __init__(self, *args: object, **kwargs: object) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, **kwargs: object) -> None:
+        super().__init__(**kwargs)  # type: ignore[arg-type]
         self._total_upload = 0
         self._total_download = 0
         self._upload_rate = 0.0
@@ -70,10 +70,13 @@ class StatsDisplay(Static):
 
     def _refresh_display(self) -> None:
         """Refresh the display text."""
+        total_rate = format_bytes(self._upload_rate + self._download_rate)
+        up_rate = format_bytes(self._upload_rate)
+        up_total = format_total_bytes(self._total_upload)
+        down_rate = format_bytes(self._download_rate)
+        down_total = format_total_bytes(self._total_download)
         text = (
-            f"Total: {format_bytes(self._upload_rate + self._download_rate)} | "
-            f"Up: {format_bytes(self._upload_rate)} ({format_total_bytes(self._total_upload)}) | "
-            f"Down: {format_bytes(self._download_rate)} ({format_total_bytes(self._total_download)})"
+            f"Total: {total_rate} | Up: {up_rate} ({up_total}) | Down: {down_rate} ({down_total})"
         )
         self.update(text)
 
@@ -141,9 +144,10 @@ class XnettopApp(App[None]):
         total_upload_bytes = 0
         total_download_bytes = 0
         for stat in stats:
-            if stat.upload_rate < 1 and stat.download_rate < 1:
-                if stat.upload_bytes == 0 and stat.download_bytes == 0:
-                    continue
+            is_idle = stat.upload_rate < 1 and stat.download_rate < 1
+            has_no_traffic = stat.upload_bytes == 0 and stat.download_bytes == 0
+            if is_idle and has_no_traffic:
+                continue
             total_rate = stat.upload_rate + stat.download_rate
             table.add_row(
                 stat.name[:30],
@@ -165,15 +169,26 @@ class XnettopApp(App[None]):
 
     def _sort_stats(self, stats: list[ProcessStats]) -> list[ProcessStats]:
         """Sort stats by the current sort column."""
+
+        def by_download(s: ProcessStats) -> float:
+            return s.download_rate
+
+        def by_upload(s: ProcessStats) -> float:
+            return s.upload_rate
+
+        def by_total(s: ProcessStats) -> float:
+            return s.upload_rate + s.download_rate
+
+        def by_name(s: ProcessStats) -> str:
+            return s.name.lower()
+
         if self._sort_column == SortColumn.DOWNLOAD:
-            key = lambda s: s.download_rate
-        elif self._sort_column == SortColumn.UPLOAD:
-            key = lambda s: s.upload_rate
-        elif self._sort_column == SortColumn.TOTAL:
-            key = lambda s: s.upload_rate + s.download_rate
-        else:
-            key = lambda s: s.name.lower()
-        return sorted(stats, key=key, reverse=self._sort_reverse)
+            return sorted(stats, key=by_download, reverse=self._sort_reverse)
+        if self._sort_column == SortColumn.UPLOAD:
+            return sorted(stats, key=by_upload, reverse=self._sort_reverse)
+        if self._sort_column == SortColumn.TOTAL:
+            return sorted(stats, key=by_total, reverse=self._sort_reverse)
+        return sorted(stats, key=by_name, reverse=self._sort_reverse)
 
     def action_sort_download(self) -> None:
         """Sort by download rate."""

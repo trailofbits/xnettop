@@ -7,7 +7,14 @@ import threading
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from scapy.all import IP, TCP, UDP, AsyncSniffer, IPv6, conf
+from scapy.all import (
+    IP,  # ty: ignore[unresolved-import]
+    TCP,  # ty: ignore[unresolved-import]
+    UDP,  # ty: ignore[unresolved-import]
+    AsyncSniffer,
+    IPv6,  # ty: ignore[unresolved-import]
+    conf,
+)
 
 if TYPE_CHECKING:
     from scapy.packet import Packet
@@ -33,10 +40,13 @@ class PacketSniffer:
     """Capture and parse network packets using scapy."""
 
     interface: str | None = None
-    packet_queue: queue.Queue[PacketInfo] = field(default_factory=lambda: queue.Queue(maxsize=10000))
+    packet_queue: queue.Queue[PacketInfo] = field(
+        default_factory=lambda: queue.Queue(maxsize=10000)
+    )
     _sniffer: AsyncSniffer | None = None
     _running: bool = False
     _lock: threading.Lock = field(default_factory=threading.Lock)
+    _queue_lock: threading.Lock = field(default_factory=threading.Lock)
 
     def _packet_callback(self, packet: Packet) -> None:
         """Process a captured packet."""
@@ -46,11 +56,12 @@ class PacketSniffer:
         try:
             self.packet_queue.put_nowait(info)
         except queue.Full:
-            try:
-                self.packet_queue.get_nowait()
-                self.packet_queue.put_nowait(info)
-            except queue.Empty:
-                pass
+            with self._queue_lock:
+                try:
+                    self.packet_queue.get_nowait()
+                    self.packet_queue.put_nowait(info)
+                except queue.Empty:
+                    pass
 
     def _parse_packet(self, packet: Packet) -> PacketInfo | None:
         """Extract relevant info from a packet."""
@@ -119,11 +130,12 @@ class PacketSniffer:
     def drain_packets(self) -> list[PacketInfo]:
         """Get all queued packets, clearing the queue."""
         packets = []
-        while True:
-            try:
-                packets.append(self.packet_queue.get_nowait())
-            except queue.Empty:
-                break
+        with self._queue_lock:
+            while True:
+                try:
+                    packets.append(self.packet_queue.get_nowait())
+                except queue.Empty:
+                    break
         return packets
 
     @property

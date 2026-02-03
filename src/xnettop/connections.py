@@ -34,7 +34,8 @@ class ProcessInfo:
     cmdline: str
 
 
-ConnectionKey = tuple[str, int, str, int, str]  # (local_ip, local_port, remote_ip, remote_port, proto)
+# (local_ip, local_port, remote_ip, remote_port, proto)
+ConnectionKey = tuple[str, int, str, int, str]
 
 
 def make_connection_key(
@@ -58,24 +59,34 @@ class ConnectionMonitor:
 
     def start(self) -> None:
         """Start the connection monitor background thread."""
-        if self._running:
-            return
-        self._running = True
+        with self._lock:
+            if self._running:
+                return
+            self._running = True
         self._refresh_local_addrs()
         self._refresh_connections()
-        self._thread = threading.Thread(target=self._monitor_loop, daemon=True)
-        self._thread.start()
+        thread = threading.Thread(target=self._monitor_loop, daemon=True)
+        with self._lock:
+            self._thread = thread
+        thread.start()
 
     def stop(self) -> None:
         """Stop the connection monitor."""
-        self._running = False
-        if self._thread:
-            self._thread.join(timeout=2.0)
+        with self._lock:
+            if not self._running:
+                return
+            self._running = False
+            thread = self._thread
             self._thread = None
+        if thread:
+            thread.join(timeout=2.0)
 
     def _monitor_loop(self) -> None:
         """Background loop to refresh connections."""
-        while self._running:
+        while True:
+            with self._lock:
+                if not self._running:
+                    break
             self._refresh_connections()
             time.sleep(self.refresh_interval)
 
@@ -95,8 +106,9 @@ class ConnectionMonitor:
 
     def _get_process_info(self, pid: int) -> ProcessInfo | None:
         """Get cached process info, refreshing if needed."""
-        if pid in self._processes:
-            return self._processes[pid]
+        with self._lock:
+            if pid in self._processes:
+                return self._processes[pid]
         try:
             proc = psutil.Process(pid)
             info = ProcessInfo(
@@ -104,7 +116,8 @@ class ConnectionMonitor:
                 name=proc.name(),
                 cmdline=" ".join(proc.cmdline()) if proc.cmdline() else proc.name(),
             )
-            self._processes[pid] = info
+            with self._lock:
+                self._processes[pid] = info
             return info
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             return None
@@ -162,7 +175,9 @@ class ConnectionMonitor:
         with self._lock:
             if key in self._connections:
                 return self._connections[key]
-            reverse_key = make_connection_key(remote_ip, remote_port, local_ip, local_port, protocol)
+            reverse_key = make_connection_key(
+                remote_ip, remote_port, local_ip, local_port, protocol
+            )
             return self._connections.get(reverse_key)
 
     def get_all_connections(self) -> list[ConnectionInfo]:
